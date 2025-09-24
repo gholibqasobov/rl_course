@@ -1,0 +1,35 @@
+{
+  "states": [0, 1, 2],
+  "actions": ["left", "right"],
+  "discount_factor": 0.9,
+  "transitions": {
+    "0": {
+      "left": [
+        {"next_state": 0, "prob": 0.7, "reward": 2},
+        {"next_state": 1, "prob": 0.3, "reward": 0}
+      ],
+      "right": [
+        {"next_state": 1, "prob": 1.0, "reward": 1}
+      ]
+    },
+    "1": {
+      "left": [
+        {"next_state": 0, "prob": 0.4, "reward": -1},
+        {"next_state": 2, "prob": 0.6, "reward": 2}
+      ],
+      "right": [
+        {"next_state": 2, "prob": 1.0, "reward": 3}
+      ]
+    },
+    "2": {
+      "left": [
+        {"next_state": 1, "prob": 0.5, "reward": 0},
+        {"next_state": 2, "prob": 0.5, "reward": 1}
+      ],
+      "right": [
+        {"next_state": 0, "prob": 1.0, "reward": -2}
+      ]
+    }
+  }
+}
+
