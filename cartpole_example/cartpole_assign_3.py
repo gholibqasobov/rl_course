@@ -7,12 +7,12 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Categorical
 import numpy as np
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-env = gym.make("CartPole-v1", render_mode="human").unwrapped
 
-state_size = env.observation_space.shape[0]
-action_size = env.action_space.n
+state_size = 4  # CartPole observation space size
+action_size = 2  # CartPole action space size
 lr = 0.0001
 
 def potential_function(state):
@@ -64,9 +64,14 @@ def compute_returns(next_value, rewards, masks, gamma=0.99):
         returns.insert(0, R)
     return returns
 
-def trainIters(actor, critic, n_iters, use_shaping=True):
+def trainIters(actor, critic, n_iters, use_shaping=True, render=False):
+    # Create a new environment for each training run
+    env = gym.make("CartPole-v1", render_mode="human" if render else None)
+    
     optimizerA = optim.Adam(actor.parameters(), lr=lr)
     optimizerC = optim.Adam(critic.parameters(), lr=lr)
+    
+    episode_returns = []  # Store returns for each episode
     
     for iter in range(n_iters):
         state, info = env.reset()
@@ -80,9 +85,8 @@ def trainIters(actor, critic, n_iters, use_shaping=True):
         prev_state = state
 
         for i in count():
-
-
-            env.render()
+            if render:
+                env.render()
             
             state_array = np.array(state, dtype=np.float32)
             state_tensor = torch.FloatTensor(state_array).to(device)
@@ -116,10 +120,14 @@ def trainIters(actor, critic, n_iters, use_shaping=True):
             state = next_state
 
             if done:
+                # Calculate total return for this episode
+                total_return = sum([r.item() for r in rewards])
+                episode_returns.append(total_return)
+                
                 if use_shaping:
-                    print(f'Iteration: {iter}, Score: {i}, Last Shaping Reward: {shaping_reward:.3f}')
+                    print(f'Iteration: {iter}, Score: {i}, Total Return: {total_return:.1f}, Last Shaping Reward: {shaping_reward:.3f}')
                 else:
-                    print(f'Iteration: {iter}, Score: {i}')
+                    print(f'Iteration: {iter}, Score: {i}, Total Return: {total_return:.1f}')
                 break
 
         next_state_array = np.array(next_state, dtype=np.float32)
@@ -143,25 +151,101 @@ def trainIters(actor, critic, n_iters, use_shaping=True):
         optimizerA.step()
         optimizerC.step()
     
-    # store models
-    os.makedirs('model', exist_ok=True)
-    torch.save(actor, 'model/actor.pkl')
-    torch.save(critic, 'model/critic.pkl')
     env.close()
+    return episode_returns
+
+def plot_comparison(returns_with_shaping, returns_without_shaping, window_size=10):
+
+    plt.figure(figsize=(12, 6))
+    
+    # Calculate moving averages for smoothing
+    def moving_average(data, window_size):
+        return np.convolve(data, np.ones(window_size)/window_size, mode='valid')
+    
+    # Plot raw returns with transparency
+    # plt.plot(returns_with_shaping, alpha=0.3, color='blue', label='With Shaping (raw)')
+    # plt.plot(returns_without_shaping, alpha=0.3, color='red', label='Without Shaping (raw)')
+    
+    # Plot smoothed returns
+    if len(returns_with_shaping) >= window_size:
+        smoothed_with = moving_average(returns_with_shaping, window_size)
+        plt.plot(range(window_size-1, len(returns_with_shaping)), smoothed_with, 
+                color='blue', linewidth=2, label=f'With Shaping (MA{window_size})')
+    
+    if len(returns_without_shaping) >= window_size:
+        smoothed_without = moving_average(returns_without_shaping, window_size)
+        plt.plot(range(window_size-1, len(returns_without_shaping)), smoothed_without, 
+                color='red', linewidth=2, label=f'Without Shaping (MA{window_size})')
+    
+    plt.xlabel('Episode')
+    plt.ylabel('Return')
+    plt.title('Average Return Over Episodes: With vs Without Reward Shaping')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Add some statistics
+    avg_with = np.mean(returns_with_shaping)
+    avg_without = np.mean(returns_without_shaping)
+    std_with = np.std(returns_with_shaping)
+    std_without = np.std(returns_without_shaping)
+    
+    plt.figtext(0.02, 0.02, 
+                f'With Shaping: Mean = {avg_with:.1f} ± {std_with:.1f}\n'
+                f'Without Shaping: Mean = {avg_without:.1f} ± {std_without:.1f}',
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+    
+    plt.tight_layout()
+    plt.savefig('reward_shaping_comparison.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+def run_comparison(n_iters=100):
+    """
+    Run training with and without reward shaping and plot comparison
+    """
+    print("Training with reward shaping...")
+    # Create new models for with shaping
+    actor_with = Actor(state_size, action_size).to(device)
+    critic_with = Critic(state_size, action_size).to(device)
+    returns_with_shaping = trainIters(actor_with, critic_with, n_iters=n_iters, use_shaping=True, render=False)
+    
+    print("\nTraining without reward shaping...")
+    # Create new models for without shaping
+    actor_without = Actor(state_size, action_size).to(device)
+    critic_without = Critic(state_size, action_size).to(device)
+    returns_without_shaping = trainIters(actor_without, critic_without, n_iters=n_iters, use_shaping=False, render=False)
+    
+    # Plot comparison
+    plot_comparison(returns_with_shaping, returns_without_shaping)
+    
+    return returns_with_shaping, returns_without_shaping
+
+# Alternative: Run single training (comment out run_comparison if using this)
+def run_single_training(use_shaping=True, n_iters=100, render=False):
+    """Run a single training session with or without reward shaping"""
+    actor = Actor(state_size, action_size).to(device)
+    critic = Critic(state_size, action_size).to(device)
+    
+    returns = trainIters(actor, critic, n_iters=n_iters, use_shaping=use_shaping, render=render)
+    
+    # Plot single training results
+    plt.figure(figsize=(10, 5))
+    plt.plot(returns, alpha=0.7)
+    plt.xlabel('Episode')
+    plt.ylabel('Return')
+    shaping_text = "with" if use_shaping else "without"
+    plt.title(f'Training Returns {shaping_text} Reward Shaping')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f'training_returns_{shaping_text}_shaping.png', dpi=300, bbox_inches='tight')
+    plt.show()
+    
+    return returns
 
 if __name__ == '__main__':
     os.makedirs('model', exist_ok=True)
     
-    if os.path.exists('model/actor.pkl'):
-        actor = torch.load('model/actor.pkl')
-        print('Actor Model loaded')
-    else:
-        actor = Actor(state_size, action_size).to(device)
-    if os.path.exists('model/critic.pkl'):
-        critic = torch.load('model/critic.pkl')
-        print('Critic Model loaded')
-    else:
-        critic = Critic(state_size, action_size).to(device)
+    # Option 1: Run comparison between with and without reward shaping
+    returns_with, returns_without = run_comparison(n_iters=1000)
     
-    # Train 
-    trainIters(actor, critic, n_iters=100, use_shaping=True)
+    # Option 2: Run single training (uncomment below and comment the above line)
+    # returns = run_single_training(use_shaping=True, n_iters=100, render=False)
