@@ -80,6 +80,8 @@ def trainIters(actor, critic, n_iters, use_shaping=True):
         prev_state = state
 
         for i in count():
+
+
             env.render()
             
             state_array = np.array(state, dtype=np.float32)
