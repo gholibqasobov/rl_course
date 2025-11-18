@@ -44,7 +44,7 @@ def visualize_trained_policy(episodes=10):
         env.close()
         
     except FileNotFoundError:
-        print("Error: No trained model found at 'model/actor.pkl'. Please train the model first.")
+        print("actor.pkl' not found")
     except Exception as e:
         print(f"Error: {e}")
 
