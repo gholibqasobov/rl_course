@@ -321,22 +321,21 @@ def evaluate_behavior_cloning_policy(policy, num_episodes=100, render=False):
     return total_rewards, avg_reward, std_reward
 
 def plot_training_results(expert_returns, bc_losses):
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    fig, axes = plt.subplots(1, 2, figsize=(15, 10))
     
     # Plot 1: Expert training returns
-    axes[0, 0].plot(expert_returns)
-    axes[0, 0].set_title('Expert Actor-Critic Training Returns')
-    axes[0, 0].set_xlabel('Episode')
-    axes[0, 0].set_ylabel('Return')
-    axes[0, 0].grid(True, alpha=0.3)
+    axes[0].plot(expert_returns)
+    axes[0].set_title('Expert Actor-Critic Training Returns')
+    axes[0].set_xlabel('Episode')
+    axes[0].set_ylabel('Return')
+    axes[0].grid(True, alpha=0.3)
     
     # Plot 2: Behavior cloning loss
-    axes[0, 1].plot(bc_losses)
-    axes[0, 1].set_title('Behavior Cloning Training Loss')
-    axes[0, 1].set_xlabel('Epoch')
-    axes[0, 1].set_ylabel('Loss')
-    axes[0, 1].grid(True, alpha=0.3)
-
+    axes[1].plot(bc_losses)
+    axes[1].set_title('Behavior Cloning Training Loss')
+    axes[1].set_xlabel('Epoch')
+    axes[1].set_ylabel('Loss')
+    axes[1].grid(True, alpha=0.3)
     plt.savefig('behavior_cloning_results.png', dpi=300, bbox_inches='tight')
     plt.show()
 
